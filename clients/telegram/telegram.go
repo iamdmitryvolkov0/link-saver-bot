@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"io"
 	"net/http"
 	"net/url"
 	"path"
@@ -33,8 +34,8 @@ func (c *Client) Update(offset int, limit int) ([]Update, error) {
 	q.Add("limit", strconv.Itoa(limit))
 }
 
-func (c *Client) doRequest(method string, query url.Values) ([]byte, error) {
-	const errMsg = "cant do request"
+func (c *Client) doRequest(method string, query url.Values) (data []byte, err error) {
+	defer func() { err = e.Wrap("cant do request", err) }()
 
 	u := url.URL{
 		Scheme: "https",
@@ -45,16 +46,25 @@ func (c *Client) doRequest(method string, query url.Values) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 
 	if err != nil {
-		return nil, e.Wrap(errMsg, err)
+		return nil, err
 	}
 
 	req.URL.RawQuery = query.Encode()
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, e.Wrap(errMsg, err)
+		return nil, err
 
 	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 func (c *Client) SendMessage() {
